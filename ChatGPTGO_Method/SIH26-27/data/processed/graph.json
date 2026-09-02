@@ -1,0 +1,225 @@
+{
+  "nodes": [
+    "P001",
+    "P002",
+    "P003",
+    "P004",
+    "P005",
+    "P006",
+    "P007",
+    "P008",
+    "P009",
+    "P010",
+    "P011",
+    "P012",
+    "P013",
+    "P014",
+    "P015"
+  ],
+  "edges": [
+    {
+      "source": "P003",
+      "target": "P001"
+    },
+    {
+      "source": "P008",
+      "target": "P001"
+    },
+    {
+      "source": "P014",
+      "target": "P001"
+    },
+    {
+      "source": "P015",
+      "target": "P001"
+    },
+    {
+      "source": "P001",
+      "target": "P002"
+    },
+    {
+      "source": "P003",
+      "target": "P002"
+    },
+    {
+      "source": "P005",
+      "target": "P002"
+    },
+    {
+      "source": "P007",
+      "target": "P002"
+    },
+    {
+      "source": "P009",
+      "target": "P002"
+    },
+    {
+      "source": "P011",
+      "target": "P002"
+    },
+    {
+      "source": "P012",
+      "target": "P002"
+    },
+    {
+      "source": "P014",
+      "target": "P002"
+    },
+    {
+      "source": "P015",
+      "target": "P002"
+    },
+    {
+      "source": "P001",
+      "target": "P003"
+    },
+    {
+      "source": "P002",
+      "target": "P003"
+    },
+    {
+      "source": "P005",
+      "target": "P003"
+    },
+    {
+      "source": "P006",
+      "target": "P003"
+    },
+    {
+      "source": "P007",
+      "target": "P003"
+    },
+    {
+      "source": "P008",
+      "target": "P003"
+    },
+    {
+      "source": "P009",
+      "target": "P003"
+    },
+    {
+      "source": "P010",
+      "target": "P003"
+    },
+    {
+      "source": "P011",
+      "target": "P003"
+    },
+    {
+      "source": "P012",
+      "target": "P003"
+    },
+    {
+      "source": "P013",
+      "target": "P003"
+    },
+    {
+      "source": "P015",
+      "target": "P003"
+    },
+    {
+      "source": "P003",
+      "target": "P004"
+    },
+    {
+      "source": "P010",
+      "target": "P004"
+    },
+    {
+      "source": "P001",
+      "target": "P005"
+    },
+    {
+      "source": "P002",
+      "target": "P005"
+    },
+    {
+      "source": "P003",
+      "target": "P005"
+    },
+    {
+      "source": "P007",
+      "target": "P005"
+    },
+    {
+      "source": "P009",
+      "target": "P005"
+    },
+    {
+      "source": "P011",
+      "target": "P005"
+    },
+    {
+      "source": "P013",
+      "target": "P005"
+    },
+    {
+      "source": "P004",
+      "target": "P006"
+    },
+    {
+      "source": "P012",
+      "target": "P006"
+    },
+    {
+      "source": "P001",
+      "target": "P007"
+    },
+    {
+      "source": "P002",
+      "target": "P007"
+    },
+    {
+      "source": "P006",
+      "target": "P007"
+    },
+    {
+      "source": "P014",
+      "target": "P007"
+    },
+    {
+      "source": "P004",
+      "target": "P008"
+    },
+    {
+      "source": "P001",
+      "target": "P009"
+    },
+    {
+      "source": "P003",
+      "target": "P009"
+    },
+    {
+      "source": "P008",
+      "target": "P009"
+    },
+    {
+      "source": "P009",
+      "target": "P010"
+    },
+    {
+      "source": "P002",
+      "target": "P011"
+    },
+    {
+      "source": "P005",
+      "target": "P011"
+    },
+    {
+      "source": "P010",
+      "target": "P011"
+    },
+    {
+      "source": "P005",
+      "target": "P012"
+    },
+    {
+      "source": "P006",
+      "target": "P012"
+    },
+    {
+      "source": "P013",
+      "target": "P014"
+    }
+  ]
+}
