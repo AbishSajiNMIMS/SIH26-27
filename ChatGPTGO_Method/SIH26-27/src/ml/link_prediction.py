@@ -5,6 +5,7 @@ import torch.nn.functional as F
 
 from torch_geometric.data import Data
 from torch_geometric.nn import GCNConv
+from torch_geometric.transforms import RandomLinkSplit
 
 
 INPUT_FILE = "data/processed/graph.json"
@@ -53,7 +54,7 @@ def load_graph():
 
 
 # -----------------------------
-# GCN Model
+# GCN
 # -----------------------------
 
 class GCN(nn.Module):
@@ -76,16 +77,20 @@ class GCN(nn.Module):
 
 
 # -----------------------------
-# Link scoring
+# Link predictor
 # -----------------------------
 
-def link_score(embeddings, source, target):
+def predict_links(embeddings, edge_label_index):
 
-    return torch.sigmoid(
-        torch.sum(
-            embeddings[source] * embeddings[target]
-        )
-    )
+    source = edge_label_index[0]
+    target = edge_label_index[1]
+
+    scores = (
+        embeddings[source] *
+        embeddings[target]
+    ).sum(dim=1)
+
+    return scores
 
 
 # -----------------------------
@@ -96,45 +101,100 @@ def main():
 
     data, nodes = load_graph()
 
+    # Split existing edges into train/validation/test
+    transform = RandomLinkSplit(
+        num_val=0.2,
+        num_test=0.2,
+        is_undirected=False,
+        add_negative_train_samples=True
+    )
+
+    train_data, val_data, test_data = transform(data)
+
     model = GCN()
 
-    embeddings = model(
-        data.x,
-        data.edge_index
+    optimizer = torch.optim.Adam(
+        model.parameters(),
+        lr=0.01
     )
 
-    print("\nGNN GRAPH")
-    print("---------")
-    print(f"Nodes: {data.num_nodes}")
-    print(f"Edges: {data.num_edges}")
-    print(f"Embedding size: {embeddings.shape[1]}")
+    # -------------------------
+    # Training
+    # -------------------------
 
-    print("\nNODE EMBEDDINGS")
-    print("----------------")
+    print("\nTRAINING GNN")
+    print("------------")
 
-    for i, person in enumerate(nodes):
+    for epoch in range(1, 101):
 
-        print(
-            f"{person}: "
-            f"{embeddings[i].detach().numpy()}"
+        model.train()
+
+        optimizer.zero_grad()
+
+        embeddings = model(
+            train_data.x,
+            train_data.edge_index
         )
 
-    # Example prediction
-    source = 0
-    target = 2
+        scores = predict_links(
+            embeddings,
+            train_data.edge_label_index
+        )
 
-    score = link_score(
-        embeddings,
-        source,
-        target
-    )
+        loss = F.binary_cross_entropy_with_logits(
+            scores,
+            train_data.edge_label.float()
+        )
 
-    print("\nEXAMPLE LINK SCORE")
-    print("------------------")
-    print(
-        f"{nodes[source]} -> {nodes[target]}: "
-        f"{score.item():.4f}"
-    )
+        loss.backward()
+
+        optimizer.step()
+
+        if epoch % 10 == 0:
+            print(
+                f"Epoch {epoch:3d} | "
+                f"Loss: {loss.item():.4f}"
+            )
+
+    print("\nTraining complete.")
+
+    # -------------------------
+    # Test
+    # -------------------------
+
+    model.eval()
+
+    with torch.no_grad():
+
+        embeddings = model(
+            test_data.x,
+            test_data.edge_index
+        )
+
+        scores = torch.sigmoid(
+            predict_links(
+                embeddings,
+                test_data.edge_label_index
+            )
+        )
+
+    print("\nTEST LINK SCORES")
+    print("----------------")
+
+    for i in range(
+        min(10, len(scores))
+    ):
+
+        source = test_data.edge_label_index[0][i].item()
+        target = test_data.edge_label_index[1][i].item()
+
+        label = test_data.edge_label[i].item()
+
+        print(
+            f"{nodes[source]} -> {nodes[target]} | "
+            f"score={scores[i].item():.4f} | "
+            f"actual={int(label)}"
+        )
 
 
 if __name__ == "__main__":
