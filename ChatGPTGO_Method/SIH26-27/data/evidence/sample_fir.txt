@@ -1,0 +1,6 @@
+FIR SAMPLE
+
+Case ID: CASE001
+Person: P003
+Location: T03
+Date: 2026-08-01
