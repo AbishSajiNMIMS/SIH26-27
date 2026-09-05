@@ -14,6 +14,7 @@ from src.api.auth import (
     get_current_user,
     require_role
 )
+from src.api.evidence import router as evidence_router
 # --------------------------------------------------
 # Neo4j Configuration
 # --------------------------------------------------
@@ -42,6 +43,7 @@ app = FastAPI(
     title="SIH 26189 - Criminal Network Analysis API",
     version="1.0.0"
 )
+app.include_router(evidence_router)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
