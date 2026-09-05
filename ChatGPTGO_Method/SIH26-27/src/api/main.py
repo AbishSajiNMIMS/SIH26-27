@@ -1,8 +1,19 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import (
+    FastAPI,
+    HTTPException,
+    Depends
+)
 from fastapi.middleware.cors import CORSMiddleware
 from neo4j import GraphDatabase
 import os
+from fastapi.security import OAuth2PasswordRequestForm
 
+from src.api.auth import (
+    authenticate_user,
+    create_access_token,
+    get_current_user,
+    require_role
+)
 # --------------------------------------------------
 # Neo4j Configuration
 # --------------------------------------------------
@@ -53,8 +64,37 @@ if NEO4J_PASSWORD:
         NEO4J_URI,
         auth=(NEO4J_USERNAME, NEO4J_PASSWORD)
     )
+# --------------------------------------------------
+# LOGIN
+# --------------------------------------------------
 
+@app.post("/login")
+def login(
+    form_data: OAuth2PasswordRequestForm = Depends()
+):
 
+    user = authenticate_user(
+        form_data.username,
+        form_data.password
+    )
+
+    if not user:
+
+        raise HTTPException(
+            status_code=401,
+            detail="Incorrect username or password"
+        )
+
+    access_token = create_access_token(
+        user["username"],
+        user["role"]
+    )
+
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "role": user["role"]
+    }
 # --------------------------------------------------
 # Health Check
 # --------------------------------------------------
@@ -92,7 +132,9 @@ def health():
 # --------------------------------------------------
 
 @app.get("/network")
-def get_network():
+def get_network(
+    current_user=Depends(get_current_user)
+):
 
     if driver is None:
         raise HTTPException(
@@ -156,7 +198,21 @@ def get_network():
             status_code=500,
             detail=str(e)
         )
+# --------------------------------------------------
+# ADMIN ENDPOINT
+# --------------------------------------------------
 
+@app.get("/admin")
+def admin_endpoint(
+    current_user=Depends(
+        require_role("admin")
+    )
+):
+
+    return {
+        "message": "Admin access granted",
+        "user": current_user["username"]
+    }
 
 # --------------------------------------------------
 # Shutdown

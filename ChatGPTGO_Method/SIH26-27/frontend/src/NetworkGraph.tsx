@@ -26,6 +26,7 @@ function NetworkGraph() {
 
   useEffect(() => {
     let cy: cytoscape.Core | undefined;
+    let cancelled = false;
 
     const loadNetwork = async () => {
       try {
@@ -39,7 +40,7 @@ function NetworkGraph() {
 
         const data: NetworkData = await response.json();
 
-        if (!containerRef.current) {
+        if (cancelled || !containerRef.current) {
           return;
         }
 
@@ -97,17 +98,20 @@ function NetworkGraph() {
 
           layout: {
             name: "cose",
-            animate: true,
+            animate: false,
           },
         });
       } catch (error) {
-        console.error("Network loading error:", error);
+        if (!cancelled) {
+          console.error("Network loading error:", error);
+        }
       }
     };
 
     loadNetwork();
 
     return () => {
+      cancelled = true;
       if (cy) {
         cy.destroy();
       }
