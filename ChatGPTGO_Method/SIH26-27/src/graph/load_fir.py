@@ -5,7 +5,7 @@ from neo4j import GraphDatabase
 
 URI = "bolt://localhost:7687"
 USERNAME = "neo4j"
-PASSWORD = "Khiladi$786"
+PASSWORD = "Khiladi786"
 
 INPUT_FILE = "data/processed/fir_entities.json"
 

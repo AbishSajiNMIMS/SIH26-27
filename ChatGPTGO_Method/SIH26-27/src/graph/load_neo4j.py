@@ -10,7 +10,7 @@ INPUT_FILE = Path("C:\\Users\\sajim\\OneDrive\\Desktop\\SIH26-27\\ChatGPTGO_Meth
 
 URI = "bolt://localhost:7687"
 USERNAME = "neo4j"
-PASSWORD = "Khiladi$786"
+PASSWORD = "Khiladi786"
 
 
 def load_cdr_data():

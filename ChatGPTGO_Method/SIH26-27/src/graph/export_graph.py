@@ -4,7 +4,7 @@ import json
 
 URI = "bolt://localhost:7687"
 USERNAME = "neo4j"
-PASSWORD = "Khiladi$786"
+PASSWORD = "Khiladi786"
 
 OUTPUT_FILE = "data/processed/graph.json"
 
