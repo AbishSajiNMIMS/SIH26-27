@@ -1,7 +1,16 @@
 import hashlib
+import uuid
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, UploadFile, File, Depends, HTTPException
+import httpx
+
+from fastapi import (
+    APIRouter,
+    UploadFile,
+    File,
+    Depends,
+    HTTPException,
+)
 
 from src.api.auth import get_current_user
 
@@ -12,11 +21,10 @@ router = APIRouter(
 )
 
 
-# --------------------------------------------------
-# SHA-256 Calculation
-# --------------------------------------------------
+FABRIC_GATEWAY_URL = "http://localhost:3000"
 
-def calculate_sha256(file: UploadFile):
+
+def calculate_sha256(file: UploadFile) -> str:
 
     sha256 = hashlib.sha256()
 
@@ -32,17 +40,14 @@ def calculate_sha256(file: UploadFile):
     return sha256.hexdigest()
 
 
-# --------------------------------------------------
-# Evidence Hash Endpoint
-# --------------------------------------------------
-
 @router.post("/hash")
-def hash_evidence(
+async def hash_evidence(
     file: UploadFile = File(...),
-    current_user=Depends(get_current_user)
+    current_user=Depends(get_current_user),
 ):
 
     if not file.filename:
+
         raise HTTPException(
             status_code=400,
             detail="No filename provided"
@@ -50,19 +55,82 @@ def hash_evidence(
 
     try:
 
+        # --------------------------------
+        # 1. Calculate SHA-256
+        # --------------------------------
+
         file_hash = calculate_sha256(file)
+
+        # --------------------------------
+        # 2. Generate evidence ID
+        # --------------------------------
+
+        evidence_id = f"EVD-{uuid.uuid4().hex[:12].upper()}"
+
+        # --------------------------------
+        # 3. Create timestamp
+        # --------------------------------
 
         timestamp = datetime.now(
             timezone.utc
         ).isoformat()
 
-        return {
+        username = current_user["username"]
+
+        # --------------------------------
+        # 4. Send evidence hash to Fabric
+        # --------------------------------
+
+        payload = {
+            "id": evidence_id,
             "filename": file.filename,
             "sha256": file_hash,
+            "uploadedBy": username,
             "timestamp": timestamp,
-            "uploaded_by": current_user["username"],
-            "status": "hashed"
         }
+
+        async with httpx.AsyncClient(
+            timeout=20.0
+        ) as client:
+
+            response = await client.post(
+                f"{FABRIC_GATEWAY_URL}/record-evidence",
+                json=payload,
+            )
+
+        # --------------------------------
+        # 5. Handle Gateway response
+        # --------------------------------
+
+        if response.status_code != 200:
+
+            raise HTTPException(
+                status_code=502,
+                detail={
+                    "message": "Fabric Gateway failed",
+                    "gateway_response": response.text,
+                },
+            )
+
+        fabric_result = response.json()
+
+        # --------------------------------
+        # 6. Return complete result
+        # --------------------------------
+
+        return {
+            "status": "anchored",
+            "filename": file.filename,
+            "sha256": file_hash,
+            "evidence_id": evidence_id,
+            "uploaded_by": username,
+            "timestamp": timestamp,
+            "fabric": fabric_result,
+        }
+
+    except HTTPException:
+
+        raise
 
     except Exception as e:
 
