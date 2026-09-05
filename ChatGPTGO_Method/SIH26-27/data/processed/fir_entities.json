@@ -1,0 +1,42 @@
+{
+    "case_id": "FIR001",
+    "entities": [
+        {
+            "id": "P003",
+            "type": "Person"
+        },
+        {
+            "id": "Rahul",
+            "type": "Person"
+        },
+        {
+            "id": "Central Market",
+            "type": "Location"
+        },
+        {
+            "id": "Sector 12",
+            "type": "Location"
+        },
+        {
+            "id": "9000000001",
+            "type": "Phone"
+        }
+    ],
+    "relationships": [
+        {
+            "source": "P003",
+            "target": "FIR001",
+            "type": "MENTIONED_IN"
+        },
+        {
+            "source": "Rahul",
+            "target": "FIR001",
+            "type": "MENTIONED_IN"
+        },
+        {
+            "source": "FIR001",
+            "target": "Central Market",
+            "type": "LOCATED_AT"
+        }
+    ]
+}
