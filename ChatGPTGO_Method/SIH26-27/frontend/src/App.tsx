@@ -1,13 +1,17 @@
 import NetworkGraph from "./NetworkGraph";
 
 function App() {
-    return (
-        <div>
-            <h1>Criminal Network Analysis</h1>
+  return (
+    <div>
+      <h1>Criminal Network Analysis</h1>
 
-            <NetworkGraph />
-        </div>
-    );
+      <p>
+        AI-Powered Criminal Network Analysis System
+      </p>
+
+      <NetworkGraph />
+    </div>
+  );
 }
 
 export default App;

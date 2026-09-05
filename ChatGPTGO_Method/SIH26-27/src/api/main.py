@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from neo4j import GraphDatabase
 import os
-
 
 # --------------------------------------------------
 # Neo4j Configuration
@@ -18,7 +18,8 @@ NEO4J_USERNAME = os.getenv(
 )
 
 NEO4J_PASSWORD = os.getenv(
-    "NEO4J_PASSWORD"
+    "NEO4J_PASSWORD",
+    "Khiladi786"
 )
 
 
@@ -30,7 +31,16 @@ app = FastAPI(
     title="SIH 26189 - Criminal Network Analysis API",
     version="1.0.0"
 )
-
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # --------------------------------------------------
 # Neo4j Driver

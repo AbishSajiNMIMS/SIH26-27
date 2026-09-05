@@ -1,92 +1,129 @@
 import { useEffect, useRef } from "react";
 import cytoscape from "cytoscape";
 
+type NetworkNode = {
+  id: string;
+  label: string;
+  type: string;
+};
+
+type NetworkEdge = {
+  source: string;
+  target: string;
+  type: string;
+  duration_sec: number;
+  timestamp: string;
+  cell_tower: string;
+};
+
+type NetworkData = {
+  nodes: NetworkNode[];
+  edges: NetworkEdge[];
+};
+
 function NetworkGraph() {
-    const containerRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
-    useEffect(() => {
-        if (!containerRef.current) return;
+  useEffect(() => {
+    let cy: cytoscape.Core | undefined;
 
-        const cy = cytoscape({
-            container: containerRef.current,
+    const loadNetwork = async () => {
+      try {
+        const response = await fetch(
+          "http://127.0.0.1:8000/network"
+        );
 
-            elements: [
-                { data: { id: "P001" } },
-                { data: { id: "P002" } },
-                { data: { id: "P003" } },
-                { data: { id: "P005" } },
+        if (!response.ok) {
+          throw new Error("Failed to fetch network");
+        }
 
-                {
-                    data: {
-                        id: "e1",
-                        source: "P001",
-                        target: "P002"
-                    }
-                },
+        const data: NetworkData = await response.json();
 
-                {
-                    data: {
-                        id: "e2",
-                        source: "P002",
-                        target: "P003"
-                    }
-                },
+        if (!containerRef.current) {
+          return;
+        }
 
-                {
-                    data: {
-                        id: "e3",
-                        source: "P003",
-                        target: "P005"
-                    }
-                },
+        cy = cytoscape({
+          container: containerRef.current,
 
-                {
-                    data: {
-                        id: "e4",
-                        source: "P001",
-                        target: "P005"
-                    }
-                }
-            ],
+          elements: [
+            ...data.nodes.map((node) => ({
+              data: {
+                id: node.id,
+                label: node.label,
+                type: node.type,
+              },
+            })),
 
-            style: [
-                {
-                    selector: "node",
-                    style: {
-                        "label": "data(id)",
-                        "width": 35,
-                        "height": 35
-                    }
-                },
-                {
-                    selector: "edge",
-                    style: {
-                        "width": 2,
-                        "curve-style": "bezier"
-                    }
-                }
-            ],
+            ...data.edges.map((edge, index) => ({
+              data: {
+                id: `edge-${index}`,
+                source: edge.source,
+                target: edge.target,
+                type: edge.type,
+                duration_sec: edge.duration_sec,
+                timestamp: edge.timestamp,
+                cell_tower: edge.cell_tower,
+              },
+            })),
+          ],
 
-            layout: {
-                name: "cose"
-            }
+          style: [
+            {
+              selector: "node",
+              style: {
+                label: "data(label)",
+                "background-color": "#2563eb",
+                color: "#ffffff",
+                "text-valign": "center",
+                "text-halign": "center",
+                width: 40,
+                height: 40,
+                "font-size": 12,
+              },
+            },
+
+            {
+              selector: "edge",
+              style: {
+                width: 2,
+                "line-color": "#94a3b8",
+                "target-arrow-color": "#94a3b8",
+                "target-arrow-shape": "triangle",
+                "curve-style": "bezier",
+              },
+            },
+          ],
+
+          layout: {
+            name: "cose",
+            animate: true,
+          },
         });
+      } catch (error) {
+        console.error("Network loading error:", error);
+      }
+    };
 
-        return () => {
-            cy.destroy();
-        };
+    loadNetwork();
 
-    }, []);
+    return () => {
+      if (cy) {
+        cy.destroy();
+      }
+    };
+  }, []);
 
-    return (
-        <div
-            ref={containerRef}
-            style={{
-                width: "100%",
-                height: "600px"
-            }}
-        />
-    );
+  return (
+    <div
+      ref={containerRef}
+      style={{
+        width: "100%",
+        height: "700px",
+        border: "1px solid #ddd",
+      }}
+    />
+  );
 }
 
 export default NetworkGraph;
