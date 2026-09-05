@@ -1,4 +1,5 @@
 import hashlib
+import os
 import uuid
 from datetime import datetime, timezone
 
@@ -21,7 +22,10 @@ router = APIRouter(
 )
 
 
-FABRIC_GATEWAY_URL = "http://localhost:3000"
+FABRIC_GATEWAY_URL = os.getenv(
+    "FABRIC_GATEWAY_URL",
+    "http://localhost:3000",
+).rstrip("/")
 
 
 def calculate_sha256(file: UploadFile) -> str:
@@ -89,14 +93,17 @@ async def hash_evidence(
             "timestamp": timestamp,
         }
 
-        async with httpx.AsyncClient(
-            timeout=20.0
-        ) as client:
-
-            response = await client.post(
-                f"{FABRIC_GATEWAY_URL}/record-evidence",
-                json=payload,
-            )
+        try:
+            async with httpx.AsyncClient(timeout=20.0) as client:
+                response = await client.post(
+                    f"{FABRIC_GATEWAY_URL}/record-evidence",
+                    json=payload,
+                )
+        except httpx.HTTPError as exc:
+            raise HTTPException(
+                status_code=502,
+                detail="Fabric Gateway is unavailable",
+            ) from exc
 
         # --------------------------------
         # 5. Handle Gateway response
@@ -134,6 +141,91 @@ async def hash_evidence(
 
     except Exception as e:
 
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        )
+@router.post("/{evidence_id}/verify")
+async def verify_evidence(
+    evidence_id: str,
+    file: UploadFile = File(...),
+    current_user=Depends(get_current_user),
+):
+    if not file.filename:
+        raise HTTPException(
+            status_code=400,
+            detail="No filename provided"
+        )
+
+    try:
+        # --------------------------------
+        # 1. Calculate current file hash
+        # --------------------------------
+
+        current_hash = calculate_sha256(file)
+
+        # --------------------------------
+        # 2. Retrieve ledger record
+        # --------------------------------
+
+        try:
+            async with httpx.AsyncClient(timeout=20.0) as client:
+                response = await client.get(
+                    f"{FABRIC_GATEWAY_URL}/evidence/{evidence_id}"
+                )
+        except httpx.HTTPError as exc:
+            raise HTTPException(
+                status_code=502,
+                detail="Fabric Gateway is unavailable",
+            ) from exc
+
+        if response.status_code != 200:
+            raise HTTPException(
+                status_code=404,
+                detail="Evidence not found on Fabric ledger"
+            )
+
+        try:
+            ledger_record = response.json()
+            ledger_hash = ledger_record["sha256"]
+        except (ValueError, KeyError) as exc:
+            raise HTTPException(
+                status_code=502,
+                detail="Fabric Gateway returned an invalid evidence record",
+            ) from exc
+
+        # --------------------------------
+        # 3. Compare hashes
+        # --------------------------------
+
+        verified = current_hash == ledger_hash
+
+        # --------------------------------
+        # 4. Return verification result
+        # --------------------------------
+
+        if verified:
+            status = "integrity_verified"
+        else:
+            status = "integrity_mismatch"
+
+        return {
+            "evidence_id": evidence_id,
+            "verified": verified,
+            "status": status,
+            "ledger_sha256": ledger_hash,
+            "current_sha256": current_hash,
+            "ledger_filename": ledger_record.get("filename"),
+            "current_filename": file.filename,
+            "uploaded_by": ledger_record.get("uploadedBy"),
+            "ledger_timestamp": ledger_record.get("timestamp"),
+            "verified_by": current_user["username"],
+        }
+
+    except HTTPException:
+        raise
+
+    except Exception as e:
         raise HTTPException(
             status_code=500,
             detail=str(e)
