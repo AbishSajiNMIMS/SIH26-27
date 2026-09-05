@@ -1,63 +1,102 @@
 import json
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 
 from torch_geometric.data import Data
-from torch_geometric.nn import GCNConv
 from torch_geometric.transforms import RandomLinkSplit
+from torch_geometric.nn import GCNConv
+
+from sklearn.metrics import roc_auc_score, average_precision_score
 
 
-INPUT_FILE = "data/processed/graph.json"
+# --------------------------------------------------
+# Load Graph
+# --------------------------------------------------
+
+with open(
+    "data/processed/graph.json",
+    "r",
+    encoding="utf-8"
+) as f:
+
+    graph = json.load(f)
 
 
-# -----------------------------
-# Load graph
-# -----------------------------
+# --------------------------------------------------
+# Map Person IDs to Numeric IDs
+# --------------------------------------------------
 
-def load_graph():
-
-    with open(INPUT_FILE, "r", encoding="utf-8") as file:
-        graph = json.load(file)
-
-    nodes = graph["nodes"]
-    edges = graph["edges"]
-
-    node_to_index = {
-        node: i
-        for i, node in enumerate(nodes)
-    }
-
-    edge_list = []
-
-    for edge in edges:
-
-        source = node_to_index[edge["source"]]
-        target = node_to_index[edge["target"]]
-
-        edge_list.append([source, target])
-
-    edge_index = torch.tensor(
-        edge_list,
-        dtype=torch.long
-    ).t().contiguous()
-
-    x = torch.ones(
-        (len(nodes), 1),
-        dtype=torch.float
+person_ids = sorted(
+    set(
+        [edge["source"] for edge in graph["edges"]]
+        +
+        [edge["target"] for edge in graph["edges"]]
     )
+)
 
-    return Data(
-        x=x,
-        edge_index=edge_index
-    ), nodes
+person_to_index = {
+    person: index
+    for index, person in enumerate(person_ids)
+}
 
 
-# -----------------------------
-# GCN
-# -----------------------------
+# --------------------------------------------------
+# Create Edge Index
+# --------------------------------------------------
 
-class GCN(nn.Module):
+edge_list = []
+
+for edge in graph["edges"]:
+
+    source = person_to_index[edge["source"]]
+    target = person_to_index[edge["target"]]
+
+    edge_list.append([source, target])
+
+
+edge_index = torch.tensor(
+    edge_list,
+    dtype=torch.long
+).t().contiguous()
+
+
+# --------------------------------------------------
+# Node Features
+# --------------------------------------------------
+
+num_nodes = len(person_ids)
+
+x = torch.ones(
+    (num_nodes, 1),
+    dtype=torch.float
+)
+
+
+data = Data(
+    x=x,
+    edge_index=edge_index
+)
+
+
+# --------------------------------------------------
+# Train / Validation / Test Split
+# --------------------------------------------------
+
+splitter = RandomLinkSplit(
+    num_val=0.15,
+    num_test=0.15,
+    is_undirected=True,
+    add_negative_train_samples=True
+)
+
+train_data, val_data, test_data = splitter(data)
+
+
+# --------------------------------------------------
+# GCN Model
+# --------------------------------------------------
+
+class GCN(torch.nn.Module):
 
     def __init__(self):
 
@@ -66,7 +105,7 @@ class GCN(nn.Module):
         self.conv1 = GCNConv(1, 16)
         self.conv2 = GCNConv(16, 8)
 
-    def forward(self, x, edge_index):
+    def encode(self, x, edge_index):
 
         x = self.conv1(x, edge_index)
         x = F.relu(x)
@@ -75,127 +114,169 @@ class GCN(nn.Module):
 
         return x
 
+    def decode(self, z, edge_label_index):
 
-# -----------------------------
-# Link predictor
-# -----------------------------
+        source = edge_label_index[0]
+        target = edge_label_index[1]
 
-def predict_links(embeddings, edge_label_index):
-
-    source = edge_label_index[0]
-    target = edge_label_index[1]
-
-    scores = (
-        embeddings[source] *
-        embeddings[target]
-    ).sum(dim=1)
-
-    return scores
+        return (
+            z[source] * z[target]
+        ).sum(dim=1)
 
 
-# -----------------------------
-# Main
-# -----------------------------
+# --------------------------------------------------
+# Initialize Model
+# --------------------------------------------------
 
-def main():
+model = GCN()
 
-    data, nodes = load_graph()
+optimizer = torch.optim.Adam(
+    model.parameters(),
+    lr=0.01
+)
 
-    # Split existing edges into train/validation/test
-    transform = RandomLinkSplit(
-        num_val=0.2,
-        num_test=0.2,
-        is_undirected=False,
-        add_negative_train_samples=True
+
+# --------------------------------------------------
+# Training
+# --------------------------------------------------
+
+print("\nTRAINING GNN")
+print("------------")
+
+for epoch in range(1, 101):
+
+    model.train()
+
+    optimizer.zero_grad()
+
+    z = model.encode(
+        train_data.x,
+        train_data.edge_index
     )
 
-    train_data, val_data, test_data = transform(data)
-
-    model = GCN()
-
-    optimizer = torch.optim.Adam(
-        model.parameters(),
-        lr=0.01
+    predictions = model.decode(
+        z,
+        train_data.edge_label_index
     )
 
-    # -------------------------
-    # Training
-    # -------------------------
+    loss = F.binary_cross_entropy_with_logits(
+        predictions,
+        train_data.edge_label.float()
+    )
 
-    print("\nTRAINING GNN")
-    print("------------")
+    loss.backward()
 
-    for epoch in range(1, 101):
+    optimizer.step()
 
-        model.train()
-
-        optimizer.zero_grad()
-
-        embeddings = model(
-            train_data.x,
-            train_data.edge_index
-        )
-
-        scores = predict_links(
-            embeddings,
-            train_data.edge_label_index
-        )
-
-        loss = F.binary_cross_entropy_with_logits(
-            scores,
-            train_data.edge_label.float()
-        )
-
-        loss.backward()
-
-        optimizer.step()
-
-        if epoch % 10 == 0:
-            print(
-                f"Epoch {epoch:3d} | "
-                f"Loss: {loss.item():.4f}"
-            )
-
-    print("\nTraining complete.")
-
-    # -------------------------
-    # Test
-    # -------------------------
-
-    model.eval()
-
-    with torch.no_grad():
-
-        embeddings = model(
-            test_data.x,
-            test_data.edge_index
-        )
-
-        scores = torch.sigmoid(
-            predict_links(
-                embeddings,
-                test_data.edge_label_index
-            )
-        )
-
-    print("\nTEST LINK SCORES")
-    print("----------------")
-
-    for i in range(
-        min(10, len(scores))
-    ):
-
-        source = test_data.edge_label_index[0][i].item()
-        target = test_data.edge_label_index[1][i].item()
-
-        label = test_data.edge_label[i].item()
+    if epoch % 10 == 0:
 
         print(
-            f"{nodes[source]} -> {nodes[target]} | "
-            f"score={scores[i].item():.4f} | "
-            f"actual={int(label)}"
+            f"Epoch {epoch:03d} | "
+            f"Loss: {loss.item():.4f}"
         )
 
 
-if __name__ == "__main__":
-    main()
+# --------------------------------------------------
+# Evaluation
+# --------------------------------------------------
+
+model.eval()
+
+with torch.no_grad():
+
+    z = model.encode(
+        test_data.x,
+        test_data.edge_index
+    )
+
+    logits = model.decode(
+        z,
+        test_data.edge_label_index
+    )
+
+    probabilities = torch.sigmoid(logits)
+
+
+y_true = test_data.edge_label.cpu().numpy()
+
+y_score = probabilities.cpu().numpy()
+
+
+# --------------------------------------------------
+# Evaluation Metrics
+# --------------------------------------------------
+
+try:
+
+    roc_auc = roc_auc_score(
+        y_true,
+        y_score
+    )
+
+    average_precision = average_precision_score(
+        y_true,
+        y_score
+    )
+
+    print("\nMODEL EVALUATION")
+    print("----------------")
+    print(
+        f"ROC-AUC:            {roc_auc:.4f}"
+    )
+
+    print(
+        f"Average Precision:  {average_precision:.4f}"
+    )
+
+except ValueError as e:
+
+    print(
+        "\nEvaluation could not be calculated:"
+    )
+
+    print(e)
+
+
+# --------------------------------------------------
+# Top Predicted Links
+# --------------------------------------------------
+
+print("\nPREDICTED RELATIONSHIPS")
+print("-----------------------")
+
+
+test_edges = test_data.edge_label_index.t()
+
+results = []
+
+for i, edge in enumerate(test_edges):
+
+    source_index = edge[0].item()
+    target_index = edge[1].item()
+
+    source = person_ids[source_index]
+    target = person_ids[target_index]
+
+    score = y_score[i]
+
+    results.append(
+        (
+            source,
+            target,
+            float(score)
+        )
+    )
+
+
+results.sort(
+    key=lambda item: item[2],
+    reverse=True
+)
+
+
+for source, target, score in results[:10]:
+
+    print(
+        f"{source} -> {target} | "
+        f"probability={score:.4f}"
+    )
